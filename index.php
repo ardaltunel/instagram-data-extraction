@@ -91,7 +91,7 @@ $photoInstagramData = base64_encode ($photoInstagram);
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.13.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/1.4.6/tailwind.min.css">
 
-    <link rel="stylesheet" href="<?= $DomainUrlFullPath ?>/CssJs/style.css">
+    <link rel="stylesheet" href="CssJs/style.css">
 </head>
 <body>
 
@@ -100,7 +100,7 @@ $photoInstagramData = base64_encode ($photoInstagram);
         <!-- logo -->
         <a href="/">
             <img class="h-10"
-                 src="<?= $DomainUrlFullPath ?>/Images/instagram-logo.svg"
+                 src="Images/instagram-logo.svg"
                  alt="Instagram">
         </a>
 
@@ -267,6 +267,6 @@ else {
 }
 ?>
 
-<script src="<?= $DomainUrlFullPath ?>/CssJs/script.js"></script>
+<script src="CssJs/script.js"></script>
 </body>
 </html>
