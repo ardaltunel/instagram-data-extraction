@@ -1,97 +1,134 @@
-<?
-$ch = curl_init ();
-curl_setopt_array (
-    $ch , [
-            CURLOPT_URL            => 'https://www.instagram.com/' . $_GET['username'] . '/embed/' ,
-            CURLOPT_USERAGENT      => 'Mozilla/5.0 (Linux; Android 6.0.1; SM-G935S Build/MMB29K; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/55.0.2883.91 Mobile Safari/537.36' ,
-            CURLOPT_RETURNTRANSFER => true
-        ]
-);
-$output = curl_exec ($ch);
-curl_close ($ch);
+<?php
 
-$photo     = '';
-$username  = $_GET['username'];
-$followers = 0;
-$postCount = 0;
-$posts     = [];
+if($_GET) $username = $_GET["username"];
 
-$regex = '@\\\"owner\\\":{\\\"id\\\":\\\"([0-9]+)\\\",\\\"profile_pic_url\\\":\\\"(.*?)\\\",\\\"username\\\":\\\"(.*?)\\\",\\\"followed_by_viewer\\\":(true|false),\\\"has_public_story\\\":(true|false),\\\"is_private\\\":(true|false),\\\"is_unpublished\\\":(true|false),\\\"is_verified\\\":(true|false),\\\"edge_followed_by\\\":{\\\"count\\\":([0-9]+)},\\\"edge_owner_to_timeline_media\\\":{\\\"count\\\":([0-9]+)@';
-preg_match ($regex , $output , $result);
+if(isset($_GET["username"]) && $_GET["username"] != "")
+{
+    $user = "https://www.instagram.com/".$username."/";
 
-if (isset($result[2])) {
-    $photo = str_replace ('\\\\\\' , '' , $result[2]);
-}
-if (isset($result[9])) {
-    $followers = $result[9];
-}
-if (isset($result[10])) {
-    $postCount = $result[10];
-}
+    $parsedUrl = parse_url(trim($user));
+
+    $scheme = $parsedUrl['scheme']."://";
+    $host = $parsedUrl['host'];
+    $path = $parsedUrl['path'];
+
+    $user_path = explode('/', $path);
+    $user_path = "/".$user_path[1];
+
+    $user = $scheme.$host.$user_path;
+
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => "$user/embed/",
+        CURLOPT_USERAGENT => 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G930F Build/R16NW; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/102.0.5005.78 Mobile Safari/537.36[FBAN/EMA;FBLC/nl_NL;FBAV/306.0.0.13.107;]',
+        CURLOPT_RETURNTRANSFER => true
+    ]);
+
+    $output = curl_exec($ch);
+    curl_close($ch);
+
+    $posts = 0;
+    $followers = 0;
+    $name_surname = "";
+
+    //Username and Profile Photo
+    preg_match('@\\\"profile_pic_url\\\":\\\"(.*?)\\\",\\\"username\\\":\\\"(.*?)\\\"@',$output,$result);
+
+    if(isset($result[1]) && isset($result[2]))
+    {
+        $photo = str_replace('\\\\\\','',$result[1]);
+        $username = $result[2];
+        $profile_path = "profile/$username/";
+
+        if (!file_exists($profile_path)) {
+            if (mkdir($profile_path, 0777, true)) {
+                if(!file_exists($profile_path . "avatar.jpg"))
+                {
+                    file_put_contents($profile_path."avatar.jpg",file_get_contents($photo));
+                }
+            }
+        }
+        $photo = $profile_path."avatar.jpg";
+    }
+
+    //Name Surname
+    preg_match('@\\\"followers_count\\\":([0-9,]+),\\\"full_name\\\":\\\"(.*?)\\\"@',$output,$result);
+    if(isset($result[1]))
+    {
+        $followers = number_format($result[1],0,",");
+    }
+    if(isset($result[2]))
+    {
+        $name_surname = json_decode('"'.str_replace("\\\\","\\",$result[2]).'"');
+    }
 
 
-preg_match_all ('@\\\"thumbnail_src\\\":\\\"(.*?)\\\"@' , $output , $result);
-$posts = array_map (
-    function ($image) {
-        return str_replace ('\\\\\\' , '' , $image);
-    } , array_slice ($result[1] , 0 , 6)
-);
+    //Followers and posts
+    preg_match('@\\\"edge_owner_to_timeline_media\\\":{\\\"count\\\":([0-9]+)@i',$output,$result);
 
-/*
-if (!file_exists(__DIR__ . '/' . $username . '.jpg') && $photo) {
-    file_put_contents(__DIR__ . '/' . $username . '.jpg', file_get_contents($photo));
-}
+    if(isset($result[1]))
+    {
+        $posts = number_format($result[1],0,",");
+    }
 
-echo json_encode([
-    'username' => $username,
-    'photo' => $photo,
-    'followers' => $followers,
-    'postCount' => $postCount,
-    'posts' => $posts
-]);
-exit
-*/
-
-if ($postCount >= 1000000) {
-    $formatted_postCount = number_format ($postCount / 1000000 , ($postCount >= 10000000 ? 0 : 1)) . 'M';
+    $userlink = "https://instagram.com/".$username;
 }
-elseif ($postCount >= 10000) {
-    $formatted_postCount = number_format ($postCount / 1000 , ($postCount >= 100000 ? 0 : 1)) . 'K';
-}
-elseif ($postCount >= 1000) {
-    $formatted_postCount = number_format ($postCount , 0 , '.' , '.');
-}
-else {
-    $formatted_postCount = $postCount;
-}
-
-if ($followers >= 1000000) {
-    $formatted_followers = number_format ($followers / 1000000 , ($followers >= 10000000 ? 0 : 1)) . 'M';
-}
-elseif ($followers >= 10000) {
-    $formatted_followers = number_format ($followers / 1000 , ($followers >= 100000 ? 0 : 1)) . 'K';
-}
-elseif ($followers >= 1000) {
-    $formatted_followers = number_format ($followers , 0 , '.' , '.');
-}
-else {
-    $formatted_followers = $followers;
-}
-
-$photoInstagram     = file_get_contents ("$photo");
-$photoInstagramData = base64_encode ($photoInstagram);
 ?>
 
 <!doctype html>
 <html lang="en">
 <head>
     <title>Instagram - Arda Altunel</title>
-    <?= $Meta ?><?= $GoogleTag ?><?= $GoogleAdSanse ?><?= $MetaIcons ?>
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.13.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/1.4.6/tailwind.min.css">
 
-    <link rel="stylesheet" href="CssJs/style.css">
+    <style>
+        body{
+            margin: 0;
+            padding: 0;
+        }
+
+        .pb-full {
+            padding-bottom: 100%;
+        }
+
+        .search-bar:focus + .fa-search{
+            display: none;
+        }
+
+        @media screen and (min-width: 768px) {
+            .post:hover .overlay {
+                display: block;
+            }
+        }
+
+        .pleaseSearch {
+            height: 90vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .editProfile {
+            border: 0.1rem solid #dbdbdb;
+            border-radius: 0.3rem !important;
+            padding: 0 2.4rem !important;
+            line-height: 1.8;
+        }
+
+        .pleaseSearchText {
+            font-size: 3rem;
+            font-weight: 100;
+            text-align: center;
+        }
+
+        @media (max-width: 768px) {
+            .pleaseSearchText {
+                font-size: 2rem;
+            }
+        }
+    </style>
 </head>
 <body>
 
@@ -137,7 +174,7 @@ else {
                 <div class="md:w-3/12 md:ml-16">
                     <!-- profile image -->
                     <img class="w-20 h-20 md:w-40 md:h-40 object-cover rounded-full border-2 border-pink-600 p-1"
-                         src="data:image/jpeg;base64,<?= $photoInstagramData ?>"
+                         src="<?= $photo ?>"
                          alt="Instagram Profile Picture">
                 </div>
 
@@ -157,36 +194,16 @@ else {
                     <!-- post, following, followers list for medium screens -->
                     <ul class="hidden md:flex space-x-8 mb-4">
                         <li>
-                            <span class="font-semibold"><?= $formatted_postCount ?></span>
+                            <span class="font-semibold"><?= $posts ?></span>
                             posts
                         </li>
 
                         <li>
-                            <span class="font-semibold"><?= $formatted_followers ?></span>
+                            <span class="font-semibold"><?= $followers ?></span>
                             followers
                         </li>
-                        <li style="display: none;">
-                            <span class="font-semibold">302</span>
-                            following
-                        </li>
                     </ul>
-
-                    <!-- user meta form medium screens -->
-                    <div class="hidden md:block" style="display: none;">
-                        <h1 class="font-semibold">Mr Travlerrr...</h1>
-                        <span>Travel, Nature and Music</span>
-                        <p>Lorem ipsum dolor sit amet consectetur</p>
-                    </div>
-
                 </div>
-
-                <!-- user meta form small screens -->
-                <div class="md:hidden text-sm my-2" style="display: none;">
-                    <h1 class="font-semibold">Mr Travlerrr...</h1>
-                    <span>Travel, Nature and Music</span>
-                    <p>Lorem ipsum dolor sit amet consectetur</p>
-                </div>
-
             </header>
 
             <!-- posts -->
@@ -196,45 +213,16 @@ else {
                 <ul class="flex md:hidden justify-around space-x-8 border-t
                 text-center p-2 text-gray-600 leading-snug text-sm">
                     <li>
-                        <span class="font-semibold text-gray-800 block"><?= $formatted_postCount ?></span>
+                        <span class="font-semibold text-gray-800 block"><?= $posts ?></span>
                         posts
                     </li>
 
                     <li>
-                        <span class="font-semibold text-gray-800 block"><?= $formatted_followers ?></span>
+                        <span class="font-semibold text-gray-800 block"><?= $followers ?></span>
                         followers
-                    </li>
-                    <li style="display: none;">
-                        <span class="font-semibold text-gray-800 block">302</span>
-                        following
                     </li>
                 </ul>
 
-                <!-- insta freatures -->
-                <ul class="flex items-center justify-around md:justify-center space-x-12
-                    uppercase tracking-widest font-semibold text-xs text-gray-600
-                    border-t" style="display: none;">
-                    <!-- posts tab is active -->
-                    <li class="md:border-t md:border-gray-700 md:-mt-px md:text-gray-700">
-                        <a class="inline-block p-3" href="#">
-                            <i class="fas fa-th-large text-xl md:text-xs"></i>
-                            <span class="hidden md:inline">post</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a class="inline-block p-3" href="#">
-                            <i class="far fa-square text-xl md:text-xs"></i>
-                            <span class="hidden md:inline">igtv</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a class="inline-block p-3" href="#">
-                            <i class="fas fa-user border border-gray-500
-                             px-1 pt-1 rounded text-xl md:text-xs"></i>
-                            <span class="hidden md:inline">tagged</span>
-                        </a>
-                    </li>
-                </ul>
                 <!-- flexbox grid -->
                 <div class="flex flex-wrap -mx-px md:-mx-3">
 
@@ -252,13 +240,12 @@ else {
                                     <img class="w-full h-full absolute left-0 top-0 object-cover"
                                          src="data:image/jpeg;base64,<?= $postInstagramData ?>"
                                          alt="Instagram Post">
-
                                 </article>
                             </a>
                         </div>
                     <?php
-                    endforeach; ?>
-
+                    endforeach;
+                    ?>
                 </div>
             </div>
         </div>
@@ -266,7 +253,5 @@ else {
     <?
 }
 ?>
-
-<script src="CssJs/script.js"></script>
 </body>
 </html>
